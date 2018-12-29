@@ -1,4 +1,11 @@
 
+This archive is derived from the original Pultorak archive and contains a small
+update to the original Block 1 simulator.
+
+Currently all branches contain the same Block 1 version. Ultimately the Block2 and master 
+branch will contain n AGC Block 2 simulator.
+Pultorak's original "readme.txt" follows
+"
 The "AGC1 simulator archive" contains 15 versions of my C++ AGC block 1 simulator. 
 Version 15 is the latest, of course.
 
