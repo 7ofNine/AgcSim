@@ -1,0 +1,442 @@
+Block I Apollo Guidance Computer (AGC4) assembler version 1.6
+
+First pass: generate symbol table.
+Second pass: generate object code.
+
+                          ; TECO2_DV (file:teco2_DV.asm)
+                          ; 
+                          ; Version:	1.0
+                          ; Author:	John Pultorak
+                          ; Date:		9/14/2001
+                          ; 
+                          ; PURPOSE:
+                          ; Test and checkout program for the Block 1 Apollo Guidance Computer.
+                          ; Tests extracode instructions: DV
+                          ; 
+                          ; OPERATION:
+                          ; Enters an infinite loop at the end of the test. The A register contains 
+                          ; the code for the test that failed, or the PASS code if all tests 
+                          ; succeeded. See test codes below.
+                          ; 
+                          ; ERRATA:
+                          ; - Written for the AGC4R assembler. The assembler directives and syntax
+                          ; differ somewhat from the original AGC assembler.
+                          ; - The tests attempt to check all threads, but are not exhaustive.
+                          ; 
+                          ; SOURCES:
+                          ; Information on the Block 1 architecture: instruction set, instruction
+                          ; sequences, registers, register transfers, control pulses, memory and 
+                          ; memory addressing, I/O assignments, interrupts, and involuntary counters
+                          ; was obtained from:
+                          ; 
+                          ;	A. Hopkins, R. Alonso, and H. Blair-Smith, "Logical Description 
+                          ;		for the Apollo Guidance Computer (AGC4)", R-393, 
+                          ;		MIT Instrumentation Laboratory, Cambridge, MA, Mar. 1963.
+                          ; 
+                          ; Supplementary information was obtained from:
+                          ; 
+                          ;	R. Alonso, J. H. Laning, Jr. and H. Blair-Smith, "Preliminary 
+                          ;		MOD 3C Programmer's Manual", E-1077, MIT Instrumentation 
+                          ;		Laboratory, Cambridge, MA, Nov. 1961.
+                          ; 
+                          ;	B. I. Savage and A. Drake, "AGC4 Basic Training Manual, Volume I", 
+                          ;		E-2052, MIT Instrumentation Laboratory, Cambridge, 
+                          ;		MA, Jan. 1967.
+                          ; 
+                          ;	E. C. Hall, "MIT's Role in Project Apollo, Volume III, Computer 
+                          ;		Subsystem", R-700, MIT Charles Stark Draper Laboratory, 
+                          ;		Cambridge, MA, Aug. 1972.
+                          ; 
+                          ;	A. Hopkins, "Guidance Computer Design, Part VI", source unknown.
+                          ; 
+                          ;	A. I. Green and J. J. Rocchio, "Keyboard and Display System Program 
+                          ;		for AGC (Program Sunrise)", E-1574, MIT Instrumentation 
+                          ;		Laboratory, Cambridge, MA, Aug. 1964.
+                          ; 
+                          ;	E, C. Hall, "Journey to the Moon: The History of the Apollo 
+                          ;		Guidance Computer", AIAA, Reston VA, 1996.
+                          ; 
+                          
+                          
+                          START          EQU      %00            
+                          
+                          DVtst          EQU      %02            ; DV check failed
+                          
+                          PASS           EQU      %12345         ; PASSED all checks
+                          ; ----------------------------------------------
+                          
+                                         ORG      EXTENDER       
+05777    5777     47777 0                DS       %47777         ; needed for EXTEND
+                          
+                          OVFCNTR        EQU      %00034         ; overflow counter
+                          
+                          ; ----------------------------------------------
+                          ; ERASEABLE MEMORY -- DATA SEGMENT
+                          
+                                         ORG      %100           ; start of data area
+00100    0100     00000 1 curtest        DS       START          ; current test
+00101    0101     00000 1 savQ           DS       %0             
+                          
+                          ; DV test
+00102    0102     00000 1 DVsavA         DS       %0             
+00103    0103     00000 1 DVindex        DS       %0             
+00104    0104     00000 1 DVXTND         DS       %0             ; indexed extend
+                          
+                          ; ----------------------------------------------
+                          ; ENTRY POINTS
+                          
+                          ; program (re)start
+                                         ORG      GOPROG         
+02000    2000 0  1,2001 1                TC       goMAIN         
+                          
+                          ; ----------------------------------------------
+                          ; FIXED MEMORY -- SHARED DATA SEGMENT
+                          
+                          ; ----------------------------------------------
+                          ; MAIN PROGRAM
+                          
+                          goMAIN         EQU      *              
+02001    2001 2  0,0000 0                INHINT                  ; disable interrupts
+                          
+02002    2002 0  1,2011 0                TCR      begin          
+                          
+                          ; Test extracode instructions.
+02003    2003 0  1,2256 1                TCR      chkDV          
+                          
+                          ; Passed all tests.
+02004    2004 0  1,2327 0                TCR      finish         
+                          
+                          fail           EQU      *              
+02005    2005 3  0,0100 0                XCH      curtest        ; load last passed test into A
+02006    2006 5  0,0100 0                TS       curtest        
+                          
+                          end            EQU      *              
+02007    2007 0  1,2007 1                TC       end            ; finished, TC trap
+                          
+                          ; ----------------------------------------------
+                          ; INITIALIZE FOR START OF TESTING
+                          
+02010    2010     00000 1 STRTcode       DS       START          
+                          
+                          begin          EQU      *              
+02011    2011 3  1,2010 1                XCH      STRTcode       
+02012    2012 5  0,0100 0                TS       curtest        ; set current test code to START
+02013    2013 0  0,0000 0                RETURN                  
+                          
+                          ; ----------------------------------------------
+                          ; TEST DV INSTRUCTION SUBROUTINE
+                          ; L:	DV	K
+                          ; Verifies the following:
+                          ; - Set C(A) = b(A) / C(K)
+                          ; - Set C(Q) = - abs(remainder)
+                          ; - Set C(LP) > 0 if quotient is positive
+                          ; - Set C(LP) < 0 if quotient is negative
+                          ; - Take next instruction from L+1
+                          
+02014    2014     00002 0 DVcode         DS       DVtst          ; code for this test
+                          
+                          ; DV test values
+                          ;                          
+02015    2015     00037 0 DVstart        DS       31             ; loop DVstart+1 times
+                          
+                          ; C(A) test values
+                          div1           EQU      *              
+02016    2016     00000 1                DS       %00000         ; check #00 (+0/+0)
+02017    2017     00000 1                DS       %00000         ; check #01 (+0/-0)
+02020    2020     77777 0                DS       %77777         ; check #02 (-0/+0)
+02021    2021     77777 0                DS       %77777         ; check #03 (-0/-0)
+                          
+02022    2022     00000 1                DS       %00000         ; check #04 (+0/+1)
+02023    2023     00000 1                DS       %00000         ; check #05 (+0/-1)
+02024    2024     77777 0                DS       %77777         ; check #06 (-0/+1)
+02025    2025     77777 0                DS       %77777         ; check #07 (-0/-1)
+                          
+02026    2026     00000 1                DS       %00000         ; check #08 (+0/+16383)
+02027    2027     00000 1                DS       %00000         ; check #09 (+0/-16383)
+02030    2030     77777 0                DS       %77777         ; check #10 (-0/+16383)
+02031    2031     77777 0                DS       %77777         ; check #11 (-0/-16383)
+                          
+02032    2032     37776 0                DS       %37776         ; check #12 (+16382/+16383)
+02033    2033     37776 0                DS       %37776         ; check #13 (+16382/-16383)
+02034    2034     40001 1                DS       %40001         ; check #14 (-16382/+16383)
+02035    2035     40001 1                DS       %40001         ; check #15 (-16382/-16383)
+                          
+02036    2036     37777 1                DS       %37777         ; check #16 (+16383/+16383)
+02037    2037     37777 1                DS       %37777         ; check #17 (+16383/-16383)
+02040    2040     40000 0                DS       %40000         ; check #18 (-16383/+16383)
+02041    2041     40000 0                DS       %40000         ; check #19 (-16383/-16383)
+                          
+02042    2042     00001 0                DS       %00001         ; check #20 (+1/+2)
+02043    2043     00001 0                DS       %00001         ; check #21 (+1/+3)
+02044    2044     00001 0                DS       %00001         ; check #22 (+1/+4)
+02045    2045     00001 0                DS       %00001         ; check #23 (+1/+5)
+02046    2046     00001 0                DS       %00001         ; check #24 (+1/+6)
+02047    2047     00001 0                DS       %00001         ; check #25 (+1/+7)
+02050    2050     00001 0                DS       %00001         ; check #26 (+1/+8)
+                          
+02051    2051     00001 0                DS       %00001         ; check #27 (+1/+6)
+02052    2052     00002 0                DS       %00002         ; check #28 (+2/+12)
+02053    2053     00004 0                DS       %00004         ; check #29 (+4/+24)
+02054    2054     00010 0                DS       %00010         ; check #30 (+8/+48)
+02055    2055     00020 0                DS       %00020         ; check #31 (+16/+96)
+                          
+                          ; C(K) test values
+                          div2           EQU      *              
+02056    2056     00000 1                DS       %00000         ; check #00 (+0/+0)
+02057    2057     77777 0                DS       %77777         ; check #01 (+0/-0)
+02060    2060     00000 1                DS       %00000         ; check #02 (-0/+0)
+02061    2061     77777 0                DS       %77777         ; check #03 (-0/-0)
+                          
+02062    2062     00001 0                DS       %00001         ; check #04 (+0/+1)
+02063    2063     77776 1                DS       %77776         ; check #05 (+0/-1)
+02064    2064     00001 0                DS       %00001         ; check #06 (-0/+1)
+02065    2065     77776 1                DS       %77776         ; check #07 (-0/-1)
+                          
+02066    2066     37777 1                DS       %37777         ; check #08 (+0/+16383)
+02067    2067     40000 0                DS       %40000         ; check #09 (+0/-16383)
+02070    2070     37777 1                DS       %37777         ; check #10 (-0/+16383)
+02071    2071     40000 0                DS       %40000         ; check #11 (-0/-16383)
+                          
+02072    2072     37777 1                DS       %37777         ; check #12 (+16382/+16383)
+02073    2073     40000 0                DS       %40000         ; check #13 (+16382/-16383)
+02074    2074     37777 1                DS       %37777         ; check #14 (-16382/+16383)
+02075    2075     40000 0                DS       %40000         ; check #15 (-16382/-16383)
+                          
+02076    2076     37777 1                DS       %37777         ; check #16 (+16383/+16383)
+02077    2077     40000 0                DS       %40000         ; check #17 (+16383/-16383)
+02100    2100     37777 1                DS       %37777         ; check #18 (-16383/+16383)
+02101    2101     40000 0                DS       %40000         ; check #19 (-16383/-16383)
+                          
+02102    2102     00002 0                DS       %00002         ; check #20 (+1/+2)
+02103    2103     00003 1                DS       %00003         ; check #21 (+1/+3)
+02104    2104     00004 0                DS       %00004         ; check #22 (+1/+4)
+02105    2105     00005 1                DS       %00005         ; check #23 (+1/+5)
+02106    2106     00006 1                DS       %00006         ; check #24 (+1/+6)
+02107    2107     00007 0                DS       %00007         ; check #25 (+1/+7)
+02110    2110     00010 0                DS       %00010         ; check #26 (+1/+8)
+                          
+02111    2111     00006 1                DS       %00006         ; check #27 (+1/+6)
+02112    2112     00014 1                DS       %00014         ; check #28 (+2/+12)
+02113    2113     00030 1                DS       %00030         ; check #29 (+4/+24)
+02114    2114     00060 1                DS       %00060         ; check #30 (+8/+48)
+02115    2115     00140 1                DS       %00140         ; check #31 (+16/+96)
+                          
+                          ; A = quotient
+                          DVchkA         EQU      *              
+02116    2116     37777 1                DS       %37777         ; check #00 (+0/+0)
+02117    2117     40000 0                DS       %40000         ; check #01 (+0/-0)
+02120    2120     40000 0                DS       %40000         ; check #02 (-0/+0)
+02121    2121     37777 1                DS       %37777         ; check #03 (-0/-0)
+                          
+02122    2122     00000 1                DS       %00000         ; check #04 (+0/+1)
+02123    2123     77777 0                DS       %77777         ; check #05 (+0/-1)
+02124    2124     77777 0                DS       %77777         ; check #06 (-0/+1)
+02125    2125     00000 1                DS       %00000         ; check #07 (-0/-1)
+                          
+02126    2126     00000 1                DS       %00000         ; check #08 (+0/+16383)
+02127    2127     77777 0                DS       %77777         ; check #09 (+0/-16383)
+02130    2130     77777 0                DS       %77777         ; check #10 (-0/+16383)
+02131    2131     00000 1                DS       %00000         ; check #11 (-0/-16383)
+                          
+02132    2132     37776 0                DS       %37776         ; check #12 (+16382/+16383)
+02133    2133     40001 1                DS       %40001         ; check #13 (+16382/-16383)
+02134    2134     40001 1                DS       %40001         ; check #14 (-16382/+16383)
+02135    2135     37776 0                DS       %37776         ; check #15 (-16382/-16383)
+                          
+02136    2136     37777 1                DS       %37777         ; check #16 (+16383/+16383)
+02137    2137     40000 0                DS       %40000         ; check #17 (+16383/-16383)
+02140    2140     40000 0                DS       %40000         ; check #18 (-16383/+16383)
+02141    2141     37777 1                DS       %37777         ; check #19 (-16383/-16383)
+                          
+02142    2142     20000 0                DS       %20000         ; check #20 (+1/+2)
+02143    2143     12525 0                DS       %12525         ; check #21 (+1/+3)
+02144    2144     10000 0                DS       %10000         ; check #22 (+1/+4)
+02145    2145     06314 1                DS       %06314         ; check #23 (+1/+5)
+02146    2146     05252 1                DS       %05252         ; check #24 (+1/+6)
+02147    2147     04444 1                DS       %04444         ; check #25 (+1/+7)
+02150    2150     04000 0                DS       %04000         ; check #26 (+1/+8)
+                          
+02151    2151     05252 1                DS       %05252         ; check #27 (+1/+6)
+02152    2152     05252 1                DS       %05252         ; check #28 (+2/+12)
+02153    2153     05252 1                DS       %05252         ; check #29 (+4/+24)
+02154    2154     05252 1                DS       %05252         ; check #30 (+8/+48)
+02155    2155     05252 1                DS       %05252         ; check #31 (+16/+96)
+                          
+                          ; Q = remainder
+                          DVchkQ         EQU      *              
+02156    2156     77777 0                DS       %77777         ; check #00 (+0/+0)
+02157    2157     77777 0                DS       %77777         ; check #01 (+0/-0)
+02160    2160     77777 0                DS       %77777         ; check #02 (-0/+0)
+02161    2161     77777 0                DS       %77777         ; check #03 (-0/-0)
+                          
+02162    2162     77777 0                DS       %77777         ; check #04 (+0/+1)
+02163    2163     77777 0                DS       %77777         ; check #05 (+0/-1)
+02164    2164     77777 0                DS       %77777         ; check #06 (-0/+1)
+02165    2165     77777 0                DS       %77777         ; check #07 (-0/-1)
+                          
+02166    2166     77777 0                DS       %77777         ; check #08 (+0/+16383)
+02167    2167     77777 0                DS       %77777         ; check #09 (+0/-16383)
+02170    2170     77777 0                DS       %77777         ; check #10 (-0/+16383)
+02171    2171     77777 0                DS       %77777         ; check #11 (-0/-16383)
+                          
+02172    2172     40001 1                DS       %40001         ; check #12 (+16382/+16383)
+02173    2173     40001 1                DS       %40001         ; check #13 (+16382/-16383)
+02174    2174     40001 1                DS       %40001         ; check #14 (-16382/+16383)
+02175    2175     40001 1                DS       %40001         ; check #15 (-16382/-16383)
+                          
+02176    2176     40000 0                DS       %40000         ; check #16 (+16383/+16383)
+02177    2177     40000 0                DS       %40000         ; check #17 (+16383/-16383)
+02200    2200     40000 0                DS       %40000         ; check #18 (-16383/+16383)
+02201    2201     40000 0                DS       %40000         ; check #19 (-16383/-16383)
+                          
+02202    2202     77777 0                DS       %77777         ; check #20 (+1/+2)
+02203    2203     77776 1                DS       %77776         ; check #21 (+1/+3)
+02204    2204     77777 0                DS       %77777         ; check #22 (+1/+4)
+02205    2205     77773 1                DS       %77773         ; check #23 (+1/+5)
+02206    2206     77773 1                DS       %77773         ; check #24 (+1/+6)
+02207    2207     77773 1                DS       %77773         ; check #25 (+1/+7)
+02210    2210     77777 0                DS       %77777         ; check #26 (+1/+8)
+                          
+02211    2211     77773 1                DS       %77773         ; check #27 (+1/+6)
+02212    2212     77767 1                DS       %77767         ; check #28 (+2/+12)
+02213    2213     77757 1                DS       %77757         ; check #29 (+4/+24)
+02214    2214     77737 1                DS       %77737         ; check #30 (+8/+48)
+02215    2215     77677 1                DS       %77677         ; check #31 (+16/+96)
+                          
+                          ; LP = sign
+                          DVchkLP        EQU      *              
+02216    2216     00001 0                DS       %00001         ; check #00 (+0/+0)
+02217    2217     40000 0                DS       %40000         ; check #01 (+0/-0)
+02220    2220     40001 1                DS       %40001         ; check #02 (-0/+0)
+02221    2221     00001 0                DS       %00001         ; check #03 (-0/-0)
+                          
+02222    2222     00001 0                DS       %00001         ; check #04 (+0/+1)
+02223    2223     40000 0                DS       %40000         ; check #05 (+0/-1)
+02224    2224     40001 1                DS       %40001         ; check #06 (-0/+1)
+02225    2225     00001 0                DS       %00001         ; check #07 (-0/-1)
+                          
+02226    2226     00001 0                DS       %00001         ; check #08 (+0/+16383)
+02227    2227     40000 0                DS       %40000         ; check #09 (+0/-16383)
+02230    2230     40001 1                DS       %40001         ; check #10 (-0/+16383)
+02231    2231     00001 0                DS       %00001         ; check #11 (-0/-16383)
+                          
+02232    2232     00001 0                DS       %00001         ; check #12 (+16382/+16383)
+02233    2233     40000 0                DS       %40000         ; check #13 (+16382/-16383)
+02234    2234     40001 1                DS       %40001         ; check #14 (-16382/+16383)
+02235    2235     00001 0                DS       %00001         ; check #15 (-16382/-16383)
+                          
+02236    2236     00001 0                DS       %00001         ; check #16 (+16383/+16383)
+02237    2237     40000 0                DS       %40000         ; check #17 (+16383/-16383)
+02240    2240     40001 1                DS       %40001         ; check #18 (-16383/+16383)
+02241    2241     00001 0                DS       %00001         ; check #19 (-16383/-16383)
+                          
+02242    2242     00001 0                DS       %00001         ; check #20 (+1/+2)
+02243    2243     00001 0                DS       %00001         ; check #21 (+1/+3)
+02244    2244     00001 0                DS       %00001         ; check #22 (+1/+4)
+02245    2245     00001 0                DS       %00001         ; check #23 (+1/+5)
+02246    2246     00001 0                DS       %00001         ; check #24 (+1/+6)
+02247    2247     00001 0                DS       %00001         ; check #25 (+1/+7)
+02250    2250     00001 0                DS       %00001         ; check #26 (+1/+8)
+                          
+02251    2251     00001 0                DS       %00001         ; check #27 (+1/+6)
+02252    2252     00001 0                DS       %00001         ; check #28 (+2/+12)
+02253    2253     00001 0                DS       %00001         ; check #29 (+4/+24)
+02254    2254     00001 0                DS       %00001         ; check #30 (+8/+48)
+02255    2255     00001 0                DS       %00001         ; check #31 (+16/+96)
+                          
+                          
+                          chkDV          EQU      *              
+02256    2256 3  0,0001 0                XCH      Q              
+02257    2257 5  0,0101 1                TS       savQ           ; save return address
+                          
+02260    2260 3  1,2014 0                CAF      DVcode         
+02261    2261 5  0,0100 0                TS       curtest        ; set code identifying current test
+                          
+                          
+                          ; Decrementing loop
+                          ;	- always executes at least once (tests at end of loop)		
+                          ;	- loops 'DVstart+1' times; decrements DVindex
+02262    2262 3  1,2015 1                XCH      DVstart        ; initialize loop counter
+                          
+                          ;------------------------------ 
+                          
+                          ; DV check starts here
+                          ; uses DVindex to access test values
+                          DVloop         EQU      *              
+02263    2263 5  0,0103 0                TS       DVindex        ; save new index
+                          
+02264    2264 3  2,5777 0                CAF      EXTENDER       
+02265    2265 6  0,0103 0                AD       DVindex        
+02266    2266 5  0,0104 1                TS       DVXTND         
+                          
+02267    2267 2  0,0103 1                INDEX    DVindex        
+02270    2270 3  1,2016 1                CAF      div1           
+02271    2271 2  0,0104 0                INDEX    DVXTND         ; EXTEND using DVindex
+02272    2272 5  1,2056 0                DV       div2           
+02273    2273 5  0,0102 1                TS       DVsavA         
+                          
+                          ; verify C(Q)
+02274    2274 4  0,0001 1                CS       Q              ; get -A
+02275    2275 2  0,0103 1                INDEX    DVindex        
+02276    2276 6  1,2156 1                AD       DVchkQ         ; put (-A) + expected value in A
+02277    2277 1  0,0000 0                CCS      A              ; compare
+02300    2300 0  1,2005 0                TC       fail           ; >0 (A < expected value)
+02301    2301 0  1,2005 0                TC       fail           ; +0
+02302    2302 0  1,2005 0                TC       fail           ; <0 (A > expected value)
+                          
+                          ; verify C(A)
+02303    2303 4  0,0102 0                CS       DVsavA         ; get -A
+02304    2304 2  0,0103 1                INDEX    DVindex        
+02305    2305 6  1,2116 0                AD       DVchkA         ; put (-A) + expected value in A
+02306    2306 1  0,0000 0                CCS      A              ; compare
+02307    2307 0  1,2005 0                TC       fail           ; >0 (A < expected value)
+02310    2310 0  1,2005 0                TC       fail           ; +0
+02311    2311 0  1,2005 0                TC       fail           ; <0 (A > expected value)
+                          
+                          ; verify C(LP)
+02312    2312 4  0,0003 0                CS       LP             ; get -A
+02313    2313 2  0,0103 1                INDEX    DVindex        
+02314    2314 6  1,2216 0                AD       DVchkLP        ; put (-A) + expected value in A
+02315    2315 1  0,0000 0                CCS      A              ; compare
+02316    2316 0  1,2005 0                TC       fail           ; >0 (A < expected value)
+02317    2317 0  1,2005 0                TC       fail           ; +0
+02320    2320 0  1,2005 0                TC       fail           ; <0 (A > expected value)
+                          
+                          ; end of DV check
+                          ;------------------------------ 
+                          
+02321    2321 1  0,0103 1                CCS      DVindex        ; done?
+02322    2322 0  1,2263 1                TC       DVloop         ; not yet, do next check
+                          
+02323    2323 3  0,0101 1                XCH      savQ           
+02324    2324 5  0,0001 0                TS       Q              ; restore return address
+02325    2325 0  0,0000 0                RETURN                  
+                          
+                          ; ----------------------------------------------
+                          ; PASSED ALL TESTS!
+                          
+02326    2326     12345 0 PASScode       DS       PASS           
+                          
+                          finish         EQU      *              
+02327    2327 3  1,2326 1                CAF      PASScode       
+02330    2330 5  0,0100 0                TS       curtest        ; set current test code to PASS
+02331    2331 0  0,0000 0                RETURN                  
+                          
+                          ; ----------------------------------------------
+                          
+                          
+                          
+
+Assembly complete. Errors = 0
+
+Symbol table:
+START          000000   DVtst          000002   PASS           012345   
+EXTENDER       005777   OVFCNTR        000034   curtest        000100   
+savQ           000101   DVsavA         000102   DVindex        000103   
+DVXTND         000104   GOPROG         002000   goMAIN         002001   
+fail           002005   end            002007   STRTcode       002010   
+begin          002011   DVcode         002014   DVstart        002015   
+div1           002016   div2           002056   DVchkA         002116   
+DVchkQ         002156   DVchkLP        002216   chkDV          002256   
+DVloop         002263   PASScode       002326   finish         002327   
+Q              000001   A              000000   LP             000003   

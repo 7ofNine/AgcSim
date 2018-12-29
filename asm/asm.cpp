@@ -775,7 +775,12 @@ int main(int argc, char* argv[])
 	strcpy_s(prefix, 80, sourcefile);
 
 	char* p = prefix;
-	while(*p != '\0') { p++; if(*p == '.') break; }
+	while(*p != '\0')
+    {
+        p++;
+        if(*p == '.') break;
+    }
+
 	if(strcmp(p,".asm") != 0)
 	{
 		cerr << "*** ERROR: Source file not *.asm" << endl;
