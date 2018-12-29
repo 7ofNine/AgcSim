@@ -1,0 +1,6 @@
+Debug/*
+Release/*
+*.dll
+Debug/*
+Release/*
+.vs
