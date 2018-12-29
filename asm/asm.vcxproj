@@ -20,8 +20,8 @@
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>15.0</VCProjectVersion>
-    <ProjectGuid>{8AED8AED-D8CD-42DC-9ABE-3E720424AB17}</ProjectGuid>
-    <RootNamespace>Block2AGC</RootNamespace>
+    <ProjectGuid>{53B6E49A-2E72-43B3-B5D1-513F00165F9D}</ProjectGuid>
+    <RootNamespace>asm</RootNamespace>
     <WindowsTargetPlatformVersion>10.0.17763.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
@@ -76,8 +76,6 @@
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
       <ConformanceMode>true</ConformanceMode>
-      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
-      <TreatWarningAsError>true</TreatWarningAsError>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -117,56 +115,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="src\ADR.cpp" />
-    <ClCompile Include="src\AGCmain.cpp" />
-    <ClCompile Include="src\ALU.cpp" />
-    <ClCompile Include="src\BUS.cpp" />
-    <ClCompile Include="src\CLK.cpp" />
-    <ClCompile Include="src\CPM.cpp" />
-    <ClCompile Include="src\CRG.cpp" />
-    <ClCompile Include="src\CTR.cpp" />
-    <ClCompile Include="src\DSP.cpp" />
-    <ClCompile Include="src\INP.cpp" />
-    <ClCompile Include="src\INT.cpp" />
-    <ClCompile Include="src\ISD.cpp" />
-    <ClCompile Include="src\KBD.cpp" />
-    <ClCompile Include="src\MBF.cpp" />
-    <ClCompile Include="src\MEM.cpp" />
-    <ClCompile Include="src\MON.cpp" />
-    <ClCompile Include="src\OUT.cpp" />
-    <ClCompile Include="src\PAR.cpp" />
-    <ClCompile Include="src\reg.cpp" />
-    <ClCompile Include="src\SCL.cpp" />
-    <ClCompile Include="src\SEQ.cpp" />
-    <ClCompile Include="src\TPG.cpp" />
-  </ItemGroup>
-  <ItemGroup>
-    <ClInclude Include="src\ADR.h" />
-    <ClInclude Include="src\ALU.h" />
-    <ClInclude Include="src\BUS.h" />
-    <ClInclude Include="src\CLK.h" />
-    <ClInclude Include="src\CPM.h" />
-    <ClInclude Include="src\CRG.h" />
-    <ClInclude Include="src\CTR.h" />
-    <ClInclude Include="src\DSP.h" />
-    <ClInclude Include="src\INP.h" />
-    <ClInclude Include="src\INT.h" />
-    <ClInclude Include="src\ISD.h" />
-    <ClInclude Include="src\KBD.h" />
-    <ClInclude Include="src\MBF.h" />
-    <ClInclude Include="src\MEM.h" />
-    <ClInclude Include="src\MON.h" />
-    <ClInclude Include="src\OUT.h" />
-    <ClInclude Include="src\PAR.h" />
-    <ClInclude Include="src\reg.h" />
-    <ClInclude Include="src\SCL.h" />
-    <ClInclude Include="src\SEQ.h" />
-    <ClInclude Include="src\TPG.h" />
-  </ItemGroup>
-  <ItemGroup>
-    <Text Include="README.txt">
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
-    </Text>
+    <ClCompile Include="asm.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
