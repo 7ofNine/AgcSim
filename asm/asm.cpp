@@ -142,7 +142,7 @@ unsigned locCntr = 0; // address in 14-bit format
 unsigned errorCount = 0;
 
 
-FILE* fpList = 0;	// output (assembly listing)
+FILE* fpList = nullptr;	// output (assembly listing)
 FILE* fpObj = nullptr;	// output (object code)
 
 
@@ -223,28 +223,28 @@ void parse(char* buf, char* labl, char* opcd, char* opnd, char* cmnt)
 
 	enum {_labl=0, _opcd, _opnd, _cmnt } mode = _labl;
 
-
+    char * nextToken = nullptr;
 	if(buf[0] == ' ') mode = _opcd;
 	do
 	{
-		s = strtok(sp, " "); sp = 0;
+		s = strtok_s(sp, " ", &nextToken); sp = 0;
 		if(s)
 		{
 			if(s[0] == ';')
 			{
 				// Copy the remainder of the comment verbatim.
-				strcat(cmnt, s);
-                strcat(cmnt, " "); 
+				strcat_s(cmnt, 100, s);
+                strcat_s(cmnt, 100, " "); 
 				s += strlen(s) + 1;
-                strcat(cmnt, s);
+                strcat_s(cmnt, 100, s);
 				return;
 
 			}
 			switch(mode)
 			{
-			case _labl: strcat(labl, s); mode = _opcd; break;
-			case _opcd: strcat(opcd, s); mode = _opnd; break;
-			case _opnd: strcat(opnd, s); mode = _cmnt; break;
+			case _labl: strcat_s(labl, 100, s); mode = _opcd; break;
+			case _opcd: strcat_s(opcd, 100, s); mode = _opnd; break;
+			case _opnd: strcat_s(opnd, 100, s); mode = _cmnt; break;
 			}
 		}
 	} while(s);
@@ -329,7 +329,7 @@ void add(char* labl, unsigned value)
 	}
 
 		// Add new symbol to symbol table
-	strcpy(symTab[nSym].name, labl);
+	strcpy_s(symTab[nSym].name, 20, labl);
 	symTab[nSym].val = value;
 	nSym++;
 }
@@ -365,7 +365,7 @@ int _getopnd(char* opnd)
 		{
 			if(strcmp(constSymTab[i].name, opnd)==0)
 			{
-				strcpy(symTab[nSym].name, opnd);
+				strcpy_s(symTab[nSym].name, 20, opnd);
 				symTab[nSym].val = constSymTab[i].val;
 				nSym++;
 				return constSymTab[i].val;
@@ -441,11 +441,11 @@ int eval(char* sp)
 	getToken(sp, op);
 	char sp1[80];
 	if(*op != '+' && *op != '-')
-		strcpy(sp1,"+");
+		strcpy_s(sp1, 80, "+");
 	else
-		strcpy(sp1,"");
+		strcpy_s(sp1, 80, "");
 
-	strcat(sp1, sp);
+	strcat_s(sp1, 80, sp);
 	return _eval(sp1, 0);
 }
 
@@ -631,8 +631,9 @@ void readSourceForPass2(char* fn)
 	char cmnt[100];	// comment
 
 		// Open the source code file.
-	FILE* fp = fopen(fn, "r");
-	if(!fp)
+    FILE* fp = nullptr;
+	errno_t error = fopen_s(&fp, fn, "r");
+	if(error != 0)
 	{
 		perror("fopen failed for source file");
 		return;
@@ -687,9 +688,9 @@ void readSourceForPass2(char* fn)
 			unsigned locCntrBank = (036000 & locCntr) >> 10;
 			char locCntrString[20];
 			if(locCntrBank <= 3)
-			    sprintf(locCntrString, "   %04o", locCntr);
+			    sprintf_s(locCntrString, 20, "   %04o", locCntr);
 			else
-				sprintf(locCntrString, "%2o,%04o", locCntrBank, 01777 & locCntr);
+				sprintf_s(locCntrString, 20, "%2o,%04o", locCntrBank, 01777 & locCntr);
 
 
 				// Generate the data to be stored at that address. Convert to 12-bit
@@ -715,10 +716,10 @@ void readSourceForPass2(char* fn)
 				// Generate a string containing the data info for the list file.
 			char dataString[20];
 			if(isOpCode(opcd))
-				sprintf(dataString, "%01o %2o,%04o %1o", 
+				sprintf_s(dataString, 20, "%01o %2o,%04o %1o", 
 					(getopcode(opcd) & 070000) >> 12, operBank, operValue, genOddParity(data));
 			else
-				sprintf(dataString, "    %05o %1o", operValue, genOddParity(data));
+				sprintf_s(dataString, 20, "    %05o %1o", operValue, genOddParity(data));
 
 
 			if(memoryUsed[locCntr])
@@ -742,7 +743,7 @@ void readSourceForPass2(char* fn)
 	fclose(fp);
 }
 
-void main(int argc, char* argv[])
+int main(int argc, char* argv[])
 {
 	cout << "AGC Block I assembler" << endl;
 
@@ -771,7 +772,7 @@ void main(int argc, char* argv[])
 		// extension off so we can use the prefix for the list
 		// and object files.
 	char prefix[80];
-	strcpy(prefix, sourcefile);
+	strcpy_s(prefix, 80, sourcefile);
 
 	char* p = prefix;
 	while(*p != '\0') { p++; if(*p == '.') break; }
@@ -785,9 +786,9 @@ void main(int argc, char* argv[])
 		// Open a text file for the assembly listing. The filename
 		// will have a .lst extension.
 	char listfile[80];
-	sprintf(listfile, "%s.lst", prefix);
-	fpList = fopen(listfile, "w");
-	if(!fpList)
+	sprintf_s(listfile, 80, "%s.lst", prefix);
+	errno_t errorList = fopen_s(&fpList, listfile, "w");
+	if(errorList != 0)
 	{
 		perror("fopen failed for assembly list file");
 		exit(-1);
@@ -796,7 +797,7 @@ void main(int argc, char* argv[])
 		// Open a text file for the object code. The filename
 		// will have a .obj extension.
 	char objfile[80];
-	sprintf(objfile, "%s.obj", prefix);
+	sprintf_s(objfile, 80, "%s.obj", prefix);
 	int error = fopen_s(&fpObj, objfile, "w");
 	if(error != 0)
 	{
