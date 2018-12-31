@@ -126,6 +126,10 @@ Errata:
 #include <iostream>
 #include <stdio.h>
 
+#include <string>
+#include <fstream>
+#include <iomanip>
+
 using namespace std;
 
 
@@ -143,7 +147,8 @@ unsigned errorCount = 0;
 
 
 FILE* fpList = nullptr;	// output (assembly listing)
-FILE* fpObj = nullptr;	// output (object code)
+//FILE* fpObj = nullptr;	// output (object code)
+ofstream outputObject;
 
 
 struct ocode
@@ -584,7 +589,7 @@ unsigned genOddParity(unsigned r)
 
 
 	// Read the source file and build the symbol table.
-void readSourceForPass1(char* fn)
+void readSourceForPass1(char const* fn)
 {
 	char buf[256];
 	char labl[100];	// label
@@ -597,7 +602,7 @@ void readSourceForPass1(char* fn)
 	int error = fopen_s(&fp, fn, "r");
 	if(error != 0)
 	{
-		perror("fopen failed for source file");
+		cerr << "open failed for source file" << endl;
 		return;
 	}
 
@@ -622,7 +627,7 @@ void readSourceForPass1(char* fn)
 
 	// Read the source file and symbol table and build
 	// the object code
-void readSourceForPass2(char* fn)
+void readSourceForPass2(char const* fn)
 {
 	char buf[256];
 	char labl[100];	// label
@@ -635,7 +640,7 @@ void readSourceForPass2(char* fn)
 	errno_t error = fopen_s(&fp, fn, "r");
 	if(error != 0)
 	{
-		perror("fopen failed for source file");
+		cerr << "open failed for source file" << endl;
 		return;
 	}
 
@@ -733,8 +738,9 @@ void readSourceForPass2(char* fn)
 			fprintf(fpList, "%05o %7s %11s %-14s %-8s %-14s %s\n",
 					locCntr, locCntrString, dataString, labl, opcd, opnd, cmnt);
 
-			fprintf(fpObj, "%06o %06o\n",
-				locCntr, data);
+			//fprintf(fpObj, "%06o %06o\n",
+			//    locCntr, data);
+            outputObject << setfill('0') << setw(6) << right << oct << locCntr << " " << setfill('0') << setw(6) << right << oct <<data << endl;
 
 		}
 
@@ -764,56 +770,71 @@ int main(int argc, char* argv[])
 	fp = fopen(argv[1], "r");
 #endif
 
-	char sourcefile[80];
+	//char sourcefile[80];
+    string sourceFile;
 	cout << "Enter source file: ";
-	cin >> sourcefile;
+	cin >> sourceFile;
 
 		// Valid source files have a .asm extension; strip the
 		// extension off so we can use the prefix for the list
 		// and object files.
-	char prefix[80];
-	strcpy_s(prefix, 80, sourcefile);
-
-	char* p = prefix;
-	while(*p != '\0')
+	//char prefix[80];
+    
+	//strcpy_s(prefix, 80, sourcefile);
+    auto idx = sourceFile.find(".asm");
+    if (idx == string::npos)
     {
-        p++;
-        if(*p == '.') break;
+        cerr << "*** ERROR: Source file not *.asm" << endl;
+        exit(-1);
     }
 
-	if(strcmp(p,".asm") != 0)
-	{
-		cerr << "*** ERROR: Source file not *.asm" << endl;
-		exit(-1);
-	}
-	*p = '\0';
+    string prefix(sourceFile.substr(0, sourceFile.length() - idx + 1));
+	//while(*p != '\0')
+    //{
+    //    p++;
+    //    if(*p == '.') break;
+    //}
+
+	//if(strcmp(p,".asm") != 0)
+	//{
+	//	cerr << "*** ERROR: Source file not *.asm" << endl;
+	//	exit(-1);
+	//}
+	//*p = '\0';
 
 		// Open a text file for the assembly listing. The filename
 		// will have a .lst extension.
-	char listfile[80];
-	sprintf_s(listfile, 80, "%s.lst", prefix);
-	errno_t errorList = fopen_s(&fpList, listfile, "w");
+	//char listfile[80];
+	//sprintf_s(listfile, 80, "%s.lst", prefix);
+    string listFile(prefix + ".lst");
+
+	errno_t errorList = fopen_s(&fpList, listFile.c_str(), "w");
 	if(errorList != 0)
 	{
-		perror("fopen failed for assembly list file");
+        cerr << "oopen failed for assembly list file" << endl;
 		exit(-1);
 	}
 
 		// Open a text file for the object code. The filename
 		// will have a .obj extension.
-	char objfile[80];
-	sprintf_s(objfile, 80, "%s.obj", prefix);
-	int error = fopen_s(&fpObj, objfile, "w");
-	if(error != 0)
+	//char objfile[80];
+	//sprintf_s(objfile, 80, "%s.obj", prefix);
+    string objectFile(prefix + ".obj");
+    outputObject.open(objectFile);
+	//int error = fopen_s(&fpObj, objectFile.c_str(), "w");
+	//if(error != 0)
+    if(!outputObject)
 	{
-		perror("fopen failed for object file");
+		cerr << "open failed for object file" << endl;
 		exit(-1);
 	}
+    // we only put out lists of opcode. do the formtatting here. all is octal
+    outputObject << setfill('0') << setw(6) << right << oct;
 
 	fprintf(fpList,"Block I Apollo Guidance Computer (AGC4) assembler version 1.6\n\n");
 
 	fprintf(fpList,"First pass: generate symbol table.\n");
-	readSourceForPass1(sourcefile);
+	readSourceForPass1(sourceFile.c_str());
 
 	locCntr = 0;
 	pass++;
@@ -823,9 +844,10 @@ int main(int argc, char* argv[])
 	memset(memoryUsed, false, sizeof(bool) * agcMemSize);
 
 	fprintf(fpList,"Second pass: generate object code.\n\n");
-	readSourceForPass2(sourcefile);
+	readSourceForPass2(sourceFile.c_str());
 
-	fclose(fpObj);
+	//fclose(fpObj);
+    outputObject.close();
 
 	fprintf(fpList,"\nAssembly complete. Errors = %d\n", errorCount);
 
